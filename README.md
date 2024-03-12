@@ -1,7 +1,3 @@
-# NVRTC parallelism
+# CUDA 2D CDF construction
 
-Test app for parallel kernel compilation using NVRTC.
-
-## PIX capture
-
-For PIX capture, ENABLE_PIX_RUNTIME must be defined and the program must be run as administrator.
+See: https://maxliani.wordpress.com/2024/03/09/about-fast-2d-cdf-construction/
