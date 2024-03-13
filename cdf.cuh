@@ -270,6 +270,14 @@ void makeCdf2d_kernel(int w, int h, const void* input, float* cdf_x, float* cdf_
 				Loader::load(input, index_x + index_y * numElements, val);
 				Remap::factorX(index_x, numElements, val);
 			}
+
+			//// BEGIN TMP DEV
+			//cdf_x[(index_x + index_y * numElements) * 4 + 0] = val.x;
+			//cdf_x[(index_x + index_y * numElements) * 4 + 1] = val.y;
+			//cdf_x[(index_x + index_y * numElements) * 4 + 2] = val.z;
+			//cdf_x[(index_x + index_y * numElements) * 4 + 3] = val.w;
+			//((float4*)cdf_x)[index_x + index_y * numElements] = val;
+			//// END TMP DEV
  
 			// Block-wise prefix scan
 			PrefixSumBlock<ScanMode>(val, smemf, total);
@@ -277,6 +285,10 @@ void makeCdf2d_kernel(int w, int h, const void* input, float* cdf_x, float* cdf_
 			// Write the result to registers
 			valN[blockN] = val;
 		}
+
+		//// BEGIN TMP DEV
+		//return;
+		//// BEGIN TMP DEV
  
 		// Normalize the row CDF. Write data from registers to the CDF
 		float normalization = (total != 0.0f ? 1.0f / total : 0.0f);
@@ -343,6 +355,8 @@ void makeCdf2d_kernel(int w, int h, const void* input, float* cdf_x, float* cdf_
 			if (inRange) ((float4*)cdf_y)[index] = val;
 		}
 		__syncthreads();
+
+		// TODO: Is some kind of memory barrier useful here?
  
 		// Step 2, read back the cdf_y and normalize it in place.
 		float normalization = (total != 0.0f ? 1.0f / total : 0.0f);

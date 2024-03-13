@@ -53,24 +53,24 @@ void makeCdf2d_rgb(uint32_t w, uint32_t h, const float* src,
  
 		dim3 blockSize(kBlockSize, 1);
 		dim3 numBlocks(1, h);
-		int blocksPerRaw = divRoundUp(numElements, kBlockSize);
+		int blocksPerRow = divRoundUp(numElements, kBlockSize);
 
 	#define LAUNCH_PARAMS numBlocks, blockSize, kBlockSize*sizeof(float)
-		if (blocksPerRaw == 1)
+		if (blocksPerRow == 1)
 		{   // From 1k up to 4k
-			makeCdf2d_kernel<Mode, Loader, Remap,  1><<<LAUNCH_PARAMS>>>(numElements, h, src, marginalCdf, conditionalCdf, counter);
+			makeCdf2d_kernel<Mode, Loader, Remap,  1><<<LAUNCH_PARAMS>>>(w, h, src, marginalCdf, conditionalCdf, counter);
 		}
-		else if (blocksPerRaw == 2)
+		else if (blocksPerRow == 2)
 		{   // up to 8k
-			makeCdf2d_kernel<Mode, Loader, Remap,  2><<<LAUNCH_PARAMS>>>(numElements, h, src, marginalCdf, conditionalCdf, counter);
+			makeCdf2d_kernel<Mode, Loader, Remap,  2><<<LAUNCH_PARAMS>>>(w, h, src, marginalCdf, conditionalCdf, counter);
 		}
-		else if (blocksPerRaw <= 4)
+		else if (blocksPerRow <= 4)
 		{   // up to 16k
-			makeCdf2d_kernel<Mode, Loader, Remap,  4><<<LAUNCH_PARAMS>>>(numElements, h, src, marginalCdf, conditionalCdf, counter);
+			makeCdf2d_kernel<Mode, Loader, Remap,  4><<<LAUNCH_PARAMS>>>(w, h, src, marginalCdf, conditionalCdf, counter);
 		}
-		else if (blocksPerRaw <= 8)
+		else if (blocksPerRow <= 8)
 		{   // up to 32k
-			makeCdf2d_kernel<Mode, Loader, Remap,  8><<<LAUNCH_PARAMS>>>(numElements, h, src, marginalCdf, conditionalCdf, counter);
+			makeCdf2d_kernel<Mode, Loader, Remap,  8><<<LAUNCH_PARAMS>>>(w, h, src, marginalCdf, conditionalCdf, counter);
 		}
 		else
 		{
@@ -100,19 +100,9 @@ int main()
 		}
 	}
 
+	// RGBA -> RGB
 	float * hInput = (float*)malloc(w * h * 3 * sizeof(float));
 	{
-		// Convert to RGB AOS
-		#if 0
-		for(int y = 0; y < h; ++y)
-		{
-			for(int x = 0; x < w; ++x)
-			{
-				// RRRRGGGGBBBB
-			}
-		}
-		#endif
-
 		for(int y = 0; y < h; ++y)
 		{
 			const int yInputOffset  = y * w * 4;
@@ -155,14 +145,17 @@ int main()
 	free(hInput);
 
 	makeCdf2d_rgb(w, h, dInput, dMarginalCdf, dConditionalCdf);
+	checkCudaErrors(cudaFree(dInput));
 
 	float * hMarginalCdf = (float*)malloc(w * h * sizeof(float));
 	checkCudaErrors(cudaMemcpy(hMarginalCdf, dMarginalCdf, w * h * sizeof(float), cudaMemcpyDeviceToHost));
+	checkCudaErrors(cudaFree(dMarginalCdf));
 	SaveAsEXR(hMarginalCdf, w, h, 1, "marginal_cdf.exr");
 	free(hMarginalCdf);
 
 	float * hConditionalCdf = (float*)malloc(h * sizeof(float));
 	checkCudaErrors(cudaMemcpy(hConditionalCdf, dConditionalCdf, h * sizeof(float), cudaMemcpyDeviceToHost));
+	checkCudaErrors(cudaFree(dConditionalCdf));
 	SaveAsEXR(hConditionalCdf, 1, h, 1, "conditional_cdf.exr");
 	free(hConditionalCdf);
 
