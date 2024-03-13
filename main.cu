@@ -84,7 +84,7 @@ void makeCdf2d_rgb(uint32_t w, uint32_t h, const float* src,
 
 int main()
 {
-	char const * inputFilename = "../../data/autumn_field_4k.exr";
+	char const * inputFilename = "../../data/hdri.exr";
 	float * inputImg; // width * height * RGBA
 	int w;
 	int h;
