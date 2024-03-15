@@ -5,6 +5,12 @@
 
 // https://maxliani.wordpress.com/2024/03/09/about-fast-2d-cdf-construction/
 
+#if defined(__CUDA_ARCH__)
+#define COMPILING_DEVICE_CODE 1
+#else
+#define COMPILING_DEVICE_CODE 0
+#endif
+
 #define PI 3.14159265359f
 
 inline __device__ float4 & operator+=(float4 & a, const float4& b) { a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w; return a; }
@@ -165,6 +171,11 @@ __device__ inline float luma(float r, float g, float b)
 {
 	return r * 0.2126f + g * 0.7152f + b * 0.0722f;
 }
+
+__device__ inline float luma(float3 rgb)
+{
+	return luma(rgb.x, rgb.y, rgb.z);
+}
  
 // Example Loaders /////////////////////////////////////////////////
 struct CdfLoaderRgb
@@ -186,7 +197,49 @@ struct CdfLoaderRgb
 	}
 };
 
-#if 0
+using rgb64_t = uint64_t;
+
+__device__ __host__
+inline void rgb64_pack(float r, float g, float b, rgb64_t& rgb)
+{
+	constexpr int kBits = 21;
+	constexpr int kShift = 32 - kBits;
+
+	#if COMPILING_DEVICE_CODE
+	uint64_t ri = __float_as_uint(r) >> kShift;
+	uint64_t gi = __float_as_uint(g) >> kShift;
+	uint64_t bi = __float_as_uint(b) >> kShift;
+	#else
+	uint64_t ri = ((uint32_t&)r) >> kShift;
+	uint64_t gi = ((uint32_t&)g) >> kShift;
+	uint64_t bi = ((uint32_t&)b) >> kShift;
+	#endif
+
+	rgb = ri | (gi << kBits) | (bi << (kBits * 2));
+}
+
+__device__ __host__
+inline void rgb64_unpack(rgb64_t rgb, float& r, float& g, float& b)
+{
+	constexpr int kBits = 21;
+	constexpr int kShift = 32 - kBits;
+	constexpr uint32_t kMask = (1u << kBits) - 1;
+
+	#if COMPILING_DEVICE_CODE
+	r = __uint_as_float(((rgb             ) & kMask) << kShift);
+	g = __uint_as_float(((rgb >>  kBits   ) & kMask) << kShift);
+	b = __uint_as_float(((rgb >> (kBits*2)) & kMask) << kShift);
+	#else
+	uint32_t ri = ((rgb             ) & kMask) << kShift;
+	uint32_t gi = ((rgb >>  kBits   ) & kMask) << kShift;
+	uint32_t bi = ((rgb >> (kBits*2)) & kMask) << kShift;
+
+	r = (float&)ri;
+	g = (float&)gi;
+	b = (float&)bi;
+	#endif
+}
+
 // Example of a 64 bits packed RGB loader
 struct CdfLoaderRgb64
 {
@@ -208,14 +261,13 @@ struct CdfLoaderRgb64
 		rgb64_unpack(load4.c, c.x, c.y, c.z);
 		rgb64_unpack(load4.d, d.x, d.y, d.z);
  
-		/ Clamp negative values
+		// Clamp negative values
 		val.x = max(0.0f, luma(a));
 		val.y = max(0.0f, luma(b));
 		val.z = max(0.0f, luma(c));
 		val.w = max(0.0f, luma(d));
 	}
 };
-#endif
 
 // Create a table to sample from a discrete 2d distribution, such as that of a hdr light map.
 // @param w, h, the texture width and height
